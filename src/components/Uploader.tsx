@@ -22,6 +22,17 @@ const Uploader = () => {
     }>
   >([]);
 
+  function uploadFile(file: File) {
+    setFiles((prevFiles) =>
+      prevFiles.map((f) =>
+        f.file.name === file.name ? { ...f, uploading: true } : f
+      )
+    );
+
+    try {
+    } catch (error) {}
+  }
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       setFiles((prevFiles) => [
@@ -37,6 +48,8 @@ const Uploader = () => {
         })),
       ]);
     }
+
+    acceptedFiles.forEach(uploadFile);
   }, []);
 
   const onDropRejected = useCallback((fileRejections: FileRejection[]) => {
