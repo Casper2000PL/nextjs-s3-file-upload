@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useCallback, useState } from "react";
@@ -7,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
+import Image from "next/image";
 
 const Uploader = () => {
   const [files, setFiles] = useState<
@@ -57,7 +60,71 @@ const Uploader = () => {
       }
 
       const { presignedUrl, key } = await presignedUrlResponse.json();
-    } catch (error) {}
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentageCompleted = Math.round(
+              (event.loaded / event.total) * 100
+            );
+
+            setFiles((prevFiles) =>
+              prevFiles.map((f) =>
+                f.file.name === file.name
+                  ? {
+                      ...f,
+                      progress: percentageCompleted,
+                      ket: f.key,
+                    }
+                  : f
+              )
+            );
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status == 200 || xhr.status == 204) {
+            setFiles((prevFiles) =>
+              prevFiles.map((f) =>
+                f.file.name === file.name
+                  ? { ...f, uploading: false, progress: 100, error: false }
+                  : f
+              )
+            );
+
+            toast.success("File uploaded successfully");
+
+            resolve();
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error("Upload failed"));
+        };
+
+        xhr.open("PUT", presignedUrl);
+
+        xhr.setRequestHeader("Content-Type", file.type);
+
+        xhr.send(file);
+      });
+    } catch (error) {
+      console.error("Upload error: ", error);
+
+      toast.error("Failed to upload file");
+
+      setFiles((prevFiles) =>
+        prevFiles.map((f) =>
+          f.file.name === file.name
+            ? { ...f, uploading: false, progress: 0, error: true }
+            : f
+        )
+      );
+    }
   }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -136,8 +203,22 @@ const Uploader = () => {
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 mt-6">
         {files.map((file) => (
-          <div key={file.id}>
-            <img src={file.objectUrl} alt={file.file.name} />
+          <div key={file.id} className="flex flex-col gap-1">
+            <div className="relative aspect-square rounded-lg overflow-hidden">
+              <img
+                src={file.objectUrl}
+                alt={file.file.name}
+                className="w-full h-full object-cover"
+              />
+
+              {file.uploading && !file.isDeleting && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                  <div className="text-white font-medium text-lg">
+                    {file.progress}%
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
