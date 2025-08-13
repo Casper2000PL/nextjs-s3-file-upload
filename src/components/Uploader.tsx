@@ -10,6 +10,7 @@ import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import Image from "next/image";
+import { Loader2Icon, Trash2Icon } from "lucide-react";
 
 const Uploader = () => {
   const [files, setFiles] = useState<
@@ -24,6 +25,49 @@ const Uploader = () => {
       objectUrl?: string;
     }>
   >([]);
+
+  async function removeFile(fileId: string) {
+    try {
+      const fileToRemove = files.find((f) => f.id === fileId);
+
+      if (fileToRemove) {
+        if (fileToRemove.objectUrl) {
+          URL.revokeObjectURL(fileToRemove.objectUrl);
+        }
+      }
+
+      setFiles((prevFiles) =>
+        prevFiles.map((f) => (f.id === fileId ? { ...f, isDeleting: true } : f))
+      );
+
+      const deleteFileResponse = await fetch("/api/s3/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: fileToRemove?.key }),
+      });
+
+      if (!deleteFileResponse.ok) {
+        toast.error("Failed to remove file from storage.");
+
+        setFiles((prevFiles) =>
+          prevFiles.map((f) =>
+            f.id === fileId ? { ...f, isDeleting: false, error: true } : f
+          )
+        );
+        return;
+      }
+
+      toast.success("File removed successfully");
+      setFiles((prevFiles) => prevFiles.filter((f) => f.id !== fileId));
+    } catch (error) {
+      toast.error("Failed to remove file from storage.");
+      setFiles((prevFiles) =>
+        prevFiles.map((f) =>
+          f.id === fileId ? { ...f, isDeleting: false, error: true } : f
+        )
+      );
+    }
+  }
 
   async function uploadFile(file: File) {
     setFiles((prevFiles) =>
@@ -76,7 +120,7 @@ const Uploader = () => {
                   ? {
                       ...f,
                       progress: percentageCompleted,
-                      ket: f.key,
+                      key: key,
                     }
                   : f
               )
@@ -211,6 +255,20 @@ const Uploader = () => {
                 className="w-full h-full object-cover"
               />
 
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2"
+                onClick={() => removeFile(file.id)}
+                disabled={file.uploading || file.isDeleting}
+              >
+                {file.isDeleting ? (
+                  <Loader2Icon className="animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+              </Button>
+
               {file.uploading && !file.isDeleting && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                   <div className="text-white font-medium text-lg">
@@ -218,7 +276,17 @@ const Uploader = () => {
                   </div>
                 </div>
               )}
+
+              {file.error && (
+                <div className="absolute inset-0 bg-red-500/50 flex items-center justify-center">
+                  <div className="text-white font-medium">Error</div>
+                </div>
+              )}
             </div>
+
+            <p className="text-sm text-muted-foreground truncate px-1">
+              {file.file.name}
+            </p>
           </div>
         ))}
       </div>
